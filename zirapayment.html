@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Golden Spoon — Restaurant Billing</title>
+  <style>
+    :root{
+      --bg:#f3f6fb; --card:#ffffff; --accent:#ff6b6b; --accent-dark:#f06595;
+      --muted:#6c757d; --success:#27ae60; --warn:#f39c12; --shadow: 0 6px 18px rgba(35,35,35,0.08);
+      --radius:12px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:Inter,Segoe UI,Helvetica,Arial; background:var(--bg); color:#222}
+
+    /* Header */
+    header{background: linear-gradient(90deg,var(--accent),var(--accent-dark)); color:#fff; padding:14px 18px; text-align:center; font-weight:700; font-size:20px; letter-spacing:0.4px; box-shadow:var(--shadow)}
+    header small{display:block; font-weight:400; font-size:13px; opacity:0.95}
+
+    /* Grid of tables (20 in one screen) */
+    .grid{width:94%; margin:18px auto; display:grid; grid-template-columns: repeat(5, 1fr); gap:14px}
+    @media (max-width:1200px){ .grid{ grid-template-columns: repeat(4,1fr);} }
+    @media (max-width:900px){ .grid{ grid-template-columns: repeat(2,1fr);} }
+    @media (max-width:480px){ .grid{ grid-template-columns: repeat(1,1fr);} }
+
+    .card{background:var(--card); border-radius:var(--radius); padding:14px; text-align:center; box-shadow:var(--shadow); cursor:pointer; transition: transform .16s ease, box-shadow .16s ease; display:flex; flex-direction:column; justify-content:space-between; min-height:110px}
+    .card:hover{ transform: translateY(-6px); box-shadow: 0 10px 30px rgba(35,35,35,0.12) }
+    .card h3{ margin:0; font-size:18px }
+    .status{ margin-top:10px; padding:6px 8px; border-radius:9px; font-weight:700; font-size:13px; display:inline-block }
+    .status.clear{ background:#e9fbef; color:var(--success); border:1px solid rgba(39,174,96,0.08) }
+    .status.pending{ background:#fff6ec; color:var(--warn); border:1px solid rgba(243,156,18,0.08) }
+
+    /* Modal */
+    .modal{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; padding:18px; z-index:999}
+    .modal.open{ display:flex }
+    .modal-card{ width:980px; max-width:98%; max-height:92vh; overflow:auto; border-radius:12px; background:var(--card); padding:18px; box-shadow:0 24px 60px rgba(0,0,0,0.25) }
+    .modal-head{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px }
+    .modal-head h2{ margin:0; font-size:20px }
+    .modal-main{ display:flex; gap:14px }
+    .left, .right{ background: #fff; border-radius:10px; padding:12px; box-shadow:var(--shadow) }
+    .left{ width:460px; flex-shrink:0 }
+    .right{ flex:1; min-width:260px; display:flex; flex-direction:column }
+
+    /* items grid */
+    .items{ display:flex; flex-wrap:wrap; gap:10px }
+    .item{ width:104px; text-align:center; border-radius:10px; padding:6px; cursor:pointer; transition: transform .12s; border:1px solid #f0f0f0; background:#fafafa }
+    .item:hover{ transform:translateY(-6px); box-shadow: 0 10px 30px rgba(0,0,0,0.06) }
+    .item img{ width:84px; height:64px; object-fit:cover; border-radius:8px; display:block; margin:0 auto }
+    .item small{ display:block; margin-top:6px; font-weight:600 }
+
+    /* bill table */
+    .bill-table{ width:100%; border-collapse:collapse; margin-top:8px }
+    .bill-table th, .bill-table td{ padding:8px 6px; border-bottom:1px solid #eee; text-align:left; vertical-align:middle }
+    .bill-img{ width:48px; height:36px; object-fit:cover; border-radius:6px; margin-right:8px; vertical-align:middle }
+
+    .actions{ display:flex; gap:8px; margin-top:10px; align-items:center }
+    .btn{ padding:10px 14px; border-radius:9px; border:none; font-weight:700; cursor:pointer }
+    .btn-print{ background:#5c7cfa; color:#fff }
+    .btn-pay{ background:#20c997; color:#fff }
+    .btn-close{ background:#adb5bd; color:#fff }
+    .pay-opts{ margin-top:10px; display:flex; gap:8px; flex-wrap:wrap }
+
+    .qr-box{ margin-top:10px; text-align:center }
+    .qr-box img{ width:150px; height:150px; object-fit:contain; display:block; margin:8px auto }
+
+    /* footer */
+    footer{ text-align:center; color:var(--muted); padding:16px 0 }
+  </style>
+</head>
+<body>
+
+<header>
+  🍴 <strong>Golden Spoon</strong> — Royal Dining · <small>123 Main Street • City Center • Phone: +91 9876543210</small>
+</header>
+
+<!-- 20 tables -->
+<div class="grid" id="grid"></div>
+
+<!-- modal for table details -->
+<div class="modal" id="modal">
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2 id="modalTitle">Table</h2>
+      <div>
+        <button class="btn btn-close" id="closeBtn">Close</button>
+      </div>
+    </div>
+
+    <div class="modal-main">
+      <!-- left: menu with images -->
+      <div class="left">
+        <h3 style="margin-top:0">Menu</h3>
+        <div class="items" id="itemsContainer"></div>
+      </div>
+
+      <!-- right: bill -->
+      <div class="right">
+        <h3 style="margin:0">Current Bill</h3>
+        <table class="bill-table" id="billTable">
+          <thead>
+            <tr><th>Item</th><th style="width:72px">Qty</th><th style="width:100px">Price</th><th style="width:110px">Total</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div style="margin-top:auto">
+          <p style="font-weight:800; font-size:18px; margin:8px 0">Grand Total: ₹<span id="grandTotal">0</span></p>
+
+          <div class="actions">
+            <!-- Print button (always available when items exist) -->
+            <button class="btn btn-print" id="printBtn" title="Print bill (without payment)">🖨 Print</button>
+            <!-- Pay button triggers payment options -->
+            <button class="btn btn-pay" id="payBtn">💳 Pay</button>
+            <div style="flex:1"></div>
+            <span style="color:var(--muted); font-size:13px">Status: <strong id="tableStatus">Clear</strong></span>
+          </div>
+
+          <!-- payment options (shown after clicking Pay) -->
+          <div class="pay-opts" id="payOptions" style="display:none">
+            <button class="btn btn-pay" id="optCash">Cash</button>
+            <button class="btn btn-pay" id="optCard">Card</button>
+            <button class="btn btn-pay" id="optQR">QR (GPay/UPI)</button>
+          </div>
+
+          <!-- QR area -->
+          <div class="qr-box" id="qrBox" style="display:none">
+            <p style="margin:0">Scan to pay (GPay UPI):</p>
+            <!-- QR generated live using QR API -->
+            <img id="qrImg" src="" alt="UPI QR">
+            <p style="font-size:13px; color:var(--muted); margin-top:6px"><strong>UPI ID:</strong> 9876543210@upi</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>✨ Thank you for dining with us — Golden Spoon</footer>
+
+<script>
+/* -------------------------
+   Data & Helpers
+   ------------------------- */
+const grid = document.getElementById('grid');
+const modal = document.getElementById('modal');
+const modalTitle = document.getElementById('modalTitle');
+const itemsContainer = document.getElementById('itemsContainer');
+const billBody = document.querySelector('#billTable tbody');
+const grandTotalEl = document.getElementById('grandTotal');
+const printBtn = document.getElementById('printBtn');
+const payBtn = document.getElementById('payBtn');
+const closeBtn = document.getElementById('closeBtn');
+const payOptions = document.getElementById('payOptions');
+const optCash = document.getElementById('optCash');
+const optCard = document.getElementById('optCard');
+const optQR = document.getElementById('optQR');
+const qrBox = document.getElementById('qrBox');
+const qrImg = document.getElementById('qrImg');
+const tableStatusText = document.getElementById('tableStatus');
+
+let currentIndex = null;
+
+// initialize 20 tables (JS memory)
+let tables = Array.from({length:20}, ()=>({ items: [], total: 0, status: 'clear' }));
+
+// menu items (images use stable picsum seeds)
+const MENU = [
+  { name: 'Pizza', price: 250, img: 'https://picsum.photos/seed/pizza/320/220' },
+  { name: 'Burger', price: 120, img: 'https://picsum.photos/seed/burger/320/220' },
+  { name: 'Pasta', price: 200, img: 'https://picsum.photos/seed/pasta/320/220' },
+  { name: 'Cold Drink', price: 60, img: 'https://picsum.photos/seed/coke/320/220' },
+  { name: 'Ice Cream', price: 80, img: 'https://picsum.photos/seed/icecream/320/220' },
+  { name: 'French Fries', price: 90, img: 'https://picsum.photos/seed/fries/320/220' },
+  { name: 'Paneer Tikka', price: 220, img: 'https://picsum.photos/seed/paneer/320/220' },
+  { name: 'Biryani', price: 300, img: 'https://picsum.photos/seed/biryani/320/220' }
+];
+
+// QR code (live generated for UPI ID)
+const UPI_ID = encodeURIComponent('upi:9876543210@upi');
+const QR_URL = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${UPI_ID}`;
+
+/* -------------------------
+   Render 20 table cards
+   ------------------------- */
+function renderGrid(){
+  grid.innerHTML = '';
+  tables.forEach((t, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<div>\n                        <h3>Table ${i+1}</h3>\n                      </div>\n                      <div style="text-align:right">\n                        <div class="status ${t.status === 'pending' ? 'pending' : 'clear'}">\n                          ${t.status === 'pending' ? 'Payment Pending' : 'Clear'}\n                        </div>\n                      </div>`;
+    card.onclick = ()=> openModal(i);
+    grid.appendChild(card);
+  });
+}
+renderGrid();
+
+/* -------------------------
+   Modal open / menu render
+   ------------------------- */
+function openModal(index){
+  currentIndex = index;
+  modalTitle.innerText = `Table ${index+1}`;
+  modal.classList.add('open');
+  renderMenu();
+  refreshBill();
+  payOptions.style.display = 'none';
+  qrBox.style.display = 'none';
+  tableStatusText.innerText = (tables[index].status === 'pending') ? 'Pending' : 'Clear';
+}
+
+closeBtn.onclick = ()=> { modal.classList.remove('open'); };
+
+/* render menu items */
+function renderMenu(){
+  itemsContainer.innerHTML = '';
+  MENU.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.innerHTML = `<img src="${m.img}" alt="${m.name}" loading="lazy"><small>${m.name}</small><div style="font-weight:700">₹${m.price}</div>`;
+    div.onclick = ()=> addItemToTable(m);
+    itemsContainer.appendChild(div);
+  });
+}
+
+/* -------------------------
+   Add item (increases qty if exists)
+   ------------------------- */
+function addItemToTable(item){
+  const table = tables[currentIndex];
+  const exist = table.items.find(it => it.name === item.name);
+  if (exist){
+    exist.qty += 1;
+  } else {
+    table.items.push({ name: item.name, price: item.price, img: item.img, qty: 1 });
+  }
+  table.total += item.price;
+  table.status = 'pending';
+  renderGrid();
+  refreshBill();
+}
+
+/* -------------------------
+   Refresh bill UI in modal
+   ------------------------- */
+function refreshBill(){
+  const table = tables[currentIndex];
+  billBody.innerHTML = '';
+  if (!table.items.length){
+    billBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--muted)">No items yet</td></tr>';
+    printBtn.disabled = true;
+    payBtn.disabled = true;
+    grandTotalEl.innerText = '0';
+    tableStatusText.innerText = 'Clear';
+    return;
+  }
+  table.items.forEach(it => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><img class="bill-img" src="${it.img}" alt=""> ${it.name}</td>\n                    <td style="text-align:center">${it.qty}</td>\n                    <td style="text-align:right">₹${it.price}</td>\n                    <td style="text-align:right">₹${it.qty * it.price}</td>`;
+    billBody.appendChild(tr);
+  });
+  // grand total row
+  const foot = document.createElement('tr');
+  foot.innerHTML = `<td colspan="3" style="text-align:right; font-weight:800">Grand Total</td>\n                    <td style="text-align:right; font-weight:800">₹${table.total}</td>`;
+  billBody.appendChild(foot);
+
+  grandTotalEl.innerText = table.total;
+  printBtn.disabled = false;
+  payBtn.disabled = false;
+  tableStatusText.innerText = 'Pending';
+}
+
+/* -------------------------
+   Print functionality
+   - printBill(paid=false, method='')
+   ------------------------- */
+function printBill(paid=false, method='Pending'){
+  const table = tables[currentIndex];
+  if (!table.items.length){
+    alert('No items to print');
+    return;
+  }
+
+  // build printable HTML
+  const w = window.open('', '_blank', 'toolbar=0,scrollbars=1,location=0,statusbar=0,menubar=0,width=680,height=800');
+  const html = [];
+  html.push('<!doctype html><html><head><meta charset="utf-8"><title>Bill</title>');
+  html.push(`<style>body{font-family:Arial,Helvetica,sans-serif;padding:18px;color:#222}h1{margin:6px 0}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left}img{width:60px;height:44px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle} .right{text-align:right}</style>`);
+  html.push('</head><body>');
+  html.push('<div style="text-align:center"><h1>Golden Spoon</h1><div style="margin-top:6px">123 Main Street, City Center</div><div>Phone: +91 9876543210</div><hr style="margin:12px 0"></div>');
+  html.push(`<div><strong>Table:</strong> ${currentIndex+1} &nbsp;&nbsp; <strong>Date:</strong> ${new Date().toLocaleString()}</div>`);
+  html.push('<table><thead><tr><th>Item</th><th style="width:60px">Qty</th><th style="width:110px">Price</th><th style="width:110px" class="right">Total</th></tr></thead><tbody>');
+  table.items.forEach(it => {
+    html.push(`<tr><td><img src="${it.img}" alt="${it.name}">${it.name}</td><td style="text-align:center">${it.qty}</td><td style="text-align:right">₹${it.price}</td><td style="text-align:right">₹${it.qty * it.price}</td></tr>`);
+  });
+  html.push(`<tr><td colspan="3" style="text-align:right;font-weight:800">Grand Total</td><td style="text-align:right;font-weight:800">₹${table.total}</td></tr>`);
+  html.push('</tbody></table>');
+
+  html.push(`<p style="margin-top:12px"><strong>Payment:</strong> ${paid ? ('PAID via '+method) : 'Pending'}</p>`);
+
+  // show QR on printed bill (use QR generation API)
+  html.push('<div style="margin-top:12px; text-align:center">');
+  html.push(`<div style="margin-bottom:6px">Scan to pay (GPay / UPI)</div>`);
+  html.push(`<img src="${QR_URL}" alt="UPI QR" style="width:150px;height:150px;display:block;margin:6px auto">`);
+  html.push(`<div style="font-size:13px;color:#555">UPI: <strong>9876543210@upi</strong></div>`);
+  html.push('</div>');
+
+  html.push('<div style="text-align:center;margin-top:18px;font-style:italic">✨ Thank you for dining with us! Visit again ✨</div>');
+  html.push('</body></html>');
+
+  w.document.write(html.join(''));
+  w.document.close();
+  w.focus();
+
+  // automatic printing (the browser will show print dialog)
+  setTimeout(()=> {
+    try{ w.print(); } catch(e) {}
+    // close the print window shortly after printing (some browsers block close)
+    setTimeout(()=> { try{ w.close(); } catch(e){} }, 1200);
+  }, 300);
+}
+
+/* -------------------------
+   Payments:
+   - print automatically after payment (as PAID),
+   - then clear table and update statuses
+   ------------------------- */
+printBtn.addEventListener('click', ()=> { printBill(false, 'Pending'); });
+
+payBtn.addEventListener('click', ()=> { payOptions.style.display = 'flex'; qrBox.style.display = 'none'; });
+
+optCash.addEventListener('click', ()=> {
+  if (!confirm('Confirm Cash payment received?')) return;
+  printBill(true, 'Cash');
+  completeClearAfterPayment();
+});
+
+optCard.addEventListener('click', ()=> {
+  if (!confirm('Process card payment? Confirm when done.')) return;
+  printBill(true, 'Card');
+  completeClearAfterPayment();
+});
+
+optQR.addEventListener('click', ()=> {
+  qrImg.src = QR_URL;
+  qrBox.style.display = 'block';
+  if (confirm('Scan QR with customer phone to pay. Click OK when payment done.')) {
+    printBill(true, 'UPI');
+    completeClearAfterPayment();
+  }
+});
+
+/* Clear and update UI after payment */
+function completeClearAfterPayment(){
+  tables[currentIndex] = { items: [], total: 0, status: 'clear' };
+  renderGrid();
+  modal.classList.remove('open');
+  payOptions.style.display = 'none';
+  qrBox.style.display = 'none';
+  alert('Payment recorded and table cleared.');
+}
+
+/* -------------------------
+   Utility: refresh grid periodically
+   ------------------------- */
+function refreshGridPeriodically(){ renderGrid(); }
+setInterval(refreshGridPeriodically, 2000);
+
+/* Initialize */
+renderGrid();
+
+</script>
+</body>
+</html>
