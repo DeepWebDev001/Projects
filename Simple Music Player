@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <style>
+        body {
+            background-color: rgb(127, 188, 127);
+        }
+
+        #box {
+            background-color: rgb(127, 188, 127);
+            height: 100vh;
+            padding: 20px;
+            border-radius: 20px;
+            width: 100%;
+            text-align: center;
+
+        }
+
+        #img {
+            border-radius: 30px;
+            width: 400px;
+        }
+
+        #logo {
+            font-size: 12.1rem;
+        }
+
+        #btns {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+
+        }
+
+        button {
+            padding: 5px 15px;
+            border-radius: 5px;
+            border: none;
+            font-size: 1.1rem;
+        }
+        #barp{
+            width: 300px;
+            margin: 20px auto;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        #bar {
+            height: 5px;
+            width: 0%;
+            background-color: blue;
+            border-radius: 10px;
+            box-shadow: 0 0 100px black;
+            display: flex;
+            justify-content: space-between;
+            cursor: pointer;
+
+        }
+
+        #bar span:first-child {
+            margin-left: -45px;
+            margin-top: -5px;
+        }
+
+        #bar span:last-child {
+            margin-right: -310px;
+            margin-top: -5px;
+        }
+    </style>
+    <div id="box">
+        <h1>Simple Music Player</h1>
+        <DIV id="logo">🎵</DIV>
+        <audio id="audio"></audio>
+        <h2 id="trackname">Track Name</h2>
+        <h4 id="artistname">Track Artist</h4>
+        <div id="btns">
+            <button id="pre">⏮</button>
+            <button id="play">▶</button>
+            <button id="next">⏭</button>
+        </div>
+        <div id="barp">
+
+            <div id="bar">
+                <span id="ctime">00:00</span>
+                <span id="songtime">00:00</span>
+            </div>
+        </div>
+    </div>
+    <script>
+        let next = document.getElementById("next")
+        let pre = document.getElementById("pre")
+        let play = document.getElementById("play")
+        let audio = document.getElementById("audio")
+        let songtime = document.getElementById("songtime")
+        let ctime = document.getElementById("ctime")
+        let trackname = document.getElementById("trackname")
+        let barp = document.getElementById("barp")
+        let count = 0;
+        let songs = [
+            { artist: "Karan Aujla", song: "YKWIM", src: "song1.mp3" },
+            { artist: "Karan Aujla", song: "Courtside", src: "song2.mp3" },
+            { artist: "Karan Aujla", song: "52Bars", src: "song3.mp3" }
+        ]
+        audio.src = songs[count].src
+        play.addEventListener("click", () => {
+
+            if (audio.paused) {
+                audio.play();
+                play.innerHTML = "❚❚"
+                trackname.innerHTML = songs[count].song;
+                artistname.innerHTML = songs[count].artist;
+            }
+            else {
+                audio.pause();
+                play.innerHTML = "▶"
+            }
+            
+        })
+        next.addEventListener("click", () => {
+            count++;
+            if (count >= songs.length) {
+                count = 0;
+            }
+            play.innerHTML = "❚❚"
+            audio.src = songs[count].src
+            audio.play();
+            trackname.innerHTML = songs[count].song;
+            artistname.innerHTML = songs[count].artist;
+            
+        })
+        pre.addEventListener("click", () => {
+            count--;
+            if (count < 0) {
+                count = 2;
+            }
+            play.innerHTML = "❚❚"
+            audio.src = songs[count].src
+            audio.play();
+            trackname.innerHTML = songs[count].song;
+            artistname.innerHTML = songs[count].artist;
+            
+        })
+        function run(time) {
+            let min = Math.floor(time / 60);
+            let sec = Math.floor(time % 60);
+            if (sec <= 9) {
+                sec = "0" + sec;
+            }
+            return `${min}:${sec}`
+        }
+        audio.addEventListener("loadedmetadata", () => {
+            songtime.innerHTML = run(audio.duration);
+            
+        })
+        audio.addEventListener("timeupdate", () => {
+            ctime.innerHTML = run(audio.currentTime);
+            let percent = (audio.currentTime / audio.duration) * 100;
+            bar.style.width = percent + "%"
+            
+        })
+        barp.addEventListener("click", (e) => {
+            let width = barp.clientWidth;
+            let clickX = e.offsetX;
+            audio.currentTime = (clickX / width) * audio.duration;
+        });
+        
+        
+        </script>
+
+
+
+</body>
+
+</html>
